@@ -3,6 +3,7 @@ import cv2
 import glob
 import apriltag
 
+from positions import get_tag_positions, center_to_corners
 
 def draw_checkerboard(
         image,
@@ -222,31 +223,30 @@ def calib_zhang(object_points, world_points):
     return mint
 
 
-def detect_apriltags(image, tag_size_mm, tag_family):
+def detect_apriltags(image, tag_family):
     # Detector de AprilTags
     options = apriltag.DetectorOptions(families=tag_family, quad_decimate=1.0)  # importante aclarar la familia de tags!!!
     detector = apriltag.Detector(options=options)
 
     detections = detector.detect(image)
+
     object_points = []
     image_points = []
+    tag_positions_mm = get_tag_positions()
 
     for detection in detections:
-
-        corners = detection.corners
         tag_id = detection.tag_id
+        #tag_center_object  = tag_positions_mm[tag_id]
+        #object_corners = center_to_corners(tag_center_object)
 
-        # Definir puntos 3D del AprilTag en el sistema de coordenadas del objeto
-        obj_pts = np.array([
-            [-tag_size_mm / 2, -tag_size_mm / 2, 0],
-            [tag_size_mm / 2, -tag_size_mm / 2, 0],
-            [tag_size_mm / 2, tag_size_mm / 2, 0],
-            [-tag_size_mm / 2, tag_size_mm / 2, 0]
-        ], dtype=np.float32)
+        object_corners = tag_positions_mm[tag_id]
+        image_corners = detection.corners
 
-        # Agregar puntos de la imagen (2D) y puntos del objeto (3D)
-        object_points.append(obj_pts)
-        image_points.append(corners)
+        object_points.append(object_corners)
+        image_points.append(image_corners)
+
+    object_points = np.concatenate(object_points)
+    image_points = np.concatenate(image_points)
 
     return object_points, image_points
 
