@@ -1,11 +1,11 @@
 import numpy as np
 
-def filter_point_cloud(point_cloud, filter='budha'):
+def filter_point_cloud(point_cloud, colors, filter='budha'):
     if filter == 'budha':
         point_cloud = mascara_budha(point_cloud)
     if filter == 'raiz_apriltags':
-        point_cloud = mascara_apriltags(point_cloud)
-    return point_cloud
+        point_cloud, colors = mascara_apriltags(point_cloud, colors)
+    return point_cloud, colors
 
 def mascara_budha(point_cloud):
     x_min, x_max = 0, 10000
@@ -24,10 +24,10 @@ def mascara_budha(point_cloud):
 
     return point_cloud
 
-def mascara_apriltags(point_cloud):
-    x_min, x_max = -100, 300
+def mascara_apriltags(point_cloud, colors):
+    x_min, x_max = -200, 200
     y_min, y_max = 0, 300
-    z_min, z_max = -100, 300
+    z_min, z_max = -200, 200
 
     mask = (
             (point_cloud[:, 0] >= x_min) & (point_cloud[:, 0] <= x_max) &
@@ -37,6 +37,6 @@ def mascara_apriltags(point_cloud):
 
     # filtering points according to the mask
     point_cloud = point_cloud[mask]
-    #colors = colors[mask]
+    colors = colors[mask]
 
-    return point_cloud
+    return point_cloud, colors

@@ -18,7 +18,7 @@ calib_results_dir = "data/stereo"
 checkerboard = (9,6)
 square_size_mm = 24.2
 
-captures_dir = "data/stereo/captures/raiz_apriltags_cordenadas"
+captures_dir = "data/stereo/captures/raiz_apriltags_ordenadas"
 rectified_dir = "data/stereo/captures/rect_raiz_apriltags_ordenadas"
 
 ################# CALIBRATION
@@ -122,12 +122,12 @@ for left_file_name, right_file_name in zip(
 
         # Armamos la matriz de transformación homogénea que convierte puntos del sistema de coordenadas del objeto a la cámara y vice versa
         c_R_o = cv2.Rodrigues(rvec)
-        # c_T_o = np.column_stack((c_R_o[0], tvec))
-        # c_T_o = np.vstack((c_T_o, [0, 0, 0, 1])) # T 4x4 que transforma puntos c_x = c_T_o  * o_x (en coordenadas del objeto a coodenadas de la cámara)
-        # o_T_c = np.linalg.inv(c_T_o) # T 4x4 que transforma puntos o_x = o_T_c  * c_x (en coordenadas de la camara a coodenadas del objeto)
-        o_T_c = np.column_stack((c_R_o[0], tvec))
-        o_T_c = np.vstack((o_T_c, [0, 0, 0, 1]))
-        c_T_o = np.linalg.inv(o_T_c)
+        c_T_o = np.column_stack((c_R_o[0], tvec))
+        c_T_o = np.vstack((c_T_o, [0, 0, 0, 1])) # T 4x4 que transforma puntos c_x = c_T_o  * o_x (en coordenadas del objeto a coodenadas de la cámara)
+        o_T_c = np.linalg.inv(c_T_o) # T 4x4 que transforma puntos o_x = o_T_c  * c_x (en coordenadas de la camara a coodenadas del objeto)
+        # o_T_c = np.column_stack((c_R_o[0], tvec))
+        # o_T_c = np.vstack((o_T_c, [0, 0, 0, 1]))
+        # c_T_o = np.linalg.inv(o_T_c)
 
         print(o_T_c)
 
@@ -140,19 +140,19 @@ for left_file_name, right_file_name in zip(
         )
 
         ############# TRIANGULATION #############
-        # Reprojecting points to 3d
+
         points_3d = cv2.reprojectImageTo3D(disparity, Q)
 
         point_cloud = points_3d.reshape(-1, points_3d.shape[-1])
-
-        unique_color = np.random.rand(1, 3)  # Genera un color RGB aleatorio
-        colors = np.tile(unique_color, (point_cloud.shape[0], 1))  # Asignar el color a todos los puntos
-
         good_points = ~np.isinf(point_cloud).any(axis=1)
-        colors = colors[good_points]
 
-        #colors = cv2.cvtColor(left_image_rectified, cv2.COLOR_BGR2RGB).astype(np.float64) / 255.0
-        #colors = colors.reshape(-1, points_3d.shape[-1])
+        # image texture
+        colors = cv2.cvtColor(left_color, cv2.COLOR_BGR2RGB).astype(np.float64) / 255.0
+        colors = colors.reshape(-1, points_3d.shape[-1])
+
+        # color point clouds
+        # unique_color = np.random.rand(1, 3)  # Genera un color RGB aleatorio
+        # colors = np.tile(unique_color, (point_cloud.shape[0], 1))  # Asignar el color a todos los puntos
 
         point_cloud = point_cloud[good_points]
         colors = colors[good_points]
@@ -162,7 +162,7 @@ for left_file_name, right_file_name in zip(
         point_cloud = point_cloud[:3].T
 
         # Filter points so only the parts of interest of the scene are reconstructed
-        point_cloud = filter_point_cloud(point_cloud, "raiz_apriltags")
+        point_cloud, colors = filter_point_cloud(point_cloud, colors,"raiz_apriltags")
 
         all_points_3d = np.vstack((all_points_3d, point_cloud))
         all_colors = np.vstack((all_colors, colors))
@@ -190,7 +190,7 @@ for c_T_o in all_camera_extrinsics:
     camera_frustums.append(camera_frustum)
 
 # Final scene rendering
-o3d.visualization.draw_geometries([pcd,axis, *camera_frustums])
+o3d.visualization.draw_geometries([pcd]) #axis, *camera_frustums
 
 # Saving point cloud
 output_file = "results/nube_de_puntos.ply"
