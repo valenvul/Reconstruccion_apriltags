@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 import open3d as o3d
 
-from positions import get_tag_positions
 from calibration.stereo_calibration import do_calibration
 from calibration.undistort import undistort
 from calibration.calib import detect_apriltags
@@ -10,6 +9,7 @@ from disparity.disp import get_disparity_method, compute_disparity
 from utils import read_pickle
 from images import prepare_imgs, process_images
 from filter_point_cloud import filter_point_cloud
+from refinement.icp import *
 
 ################## SETUP
 
@@ -42,7 +42,7 @@ undistort(
 ################ RECONSTRUCTION
 
 # input images
-input_dir = "data/stereo/captures/raiz_apriltags_ordenadas"
+input_dir = "data/stereo/captures/rect_raiz_apriltags_ordenadas"
 
 # Known object to detect in images
 tag_family = "tag25h9"
@@ -84,7 +84,6 @@ all_points_3d = np.empty((0, 3))
 all_colors = np.empty((0, 3))
 all_camera_extrinsics = []
 export_num = 0
-
 
 for left_file_name, right_file_name in zip(
         left_file_names, right_file_names):
@@ -150,10 +149,6 @@ for left_file_name, right_file_name in zip(
         colors = cv2.cvtColor(left_color, cv2.COLOR_BGR2RGB).astype(np.float64) / 255.0
         colors = colors.reshape(-1, points_3d.shape[-1])
 
-        # color point clouds
-        # unique_color = np.random.rand(1, 3)  # Genera un color RGB aleatorio
-        # colors = np.tile(unique_color, (point_cloud.shape[0], 1))  # Asignar el color a todos los puntos
-
         point_cloud = point_cloud[good_points]
         colors = colors[good_points]
 
@@ -164,8 +159,48 @@ for left_file_name, right_file_name in zip(
         # Filter points so only the parts of interest of the scene are reconstructed
         point_cloud, colors = filter_point_cloud(point_cloud, colors,"raiz_apriltags")
 
-        all_points_3d = np.vstack((all_points_3d, point_cloud))
-        all_colors = np.vstack((all_colors, colors))
+        #### ICP
+        # if it's the first point cloud save it
+        if all_points_3d.shape[0] == 0:
+            all_points_3d = np.vstack((all_points_3d, point_cloud))
+            all_colors = np.vstack((all_colors, colors))
+        # If there already is a point cloud use ICP to adjust the new one
+        else:
+            # transform pointclouds to o3d format to use ICP
+            target_cloud_o3d = np_to_o3d_pointcloud(point_cloud, colors)
+            reference_cloud_o3d = np_to_o3d_pointcloud(all_points_3d, all_colors)
+
+            # downsample and calculate fpfh for each cloud
+            reference_down, reference_fpfh = preprocess_point_cloud(reference_cloud_o3d, 0.05)
+            target_down, target_fpfh = preprocess_point_cloud(target_cloud_o3d, 0.05)
+
+            # run ransac for gloal estimation
+            result_ransac = execute_global_registration(reference_down, target_down,
+                                                        reference_fpfh, target_fpfh,
+                                                        0.05)
+
+            # ICP between reference cloud and target cloud
+            icp_result = o3d.pipelines.registration.registration_icp(
+                target_cloud_o3d, reference_cloud_o3d,
+                max_correspondence_distance=0.02,
+                estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPlane(),
+                init=result_ransac.transformation,
+                #criteria=o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=100)
+            )
+
+            print(f"Fitness: {icp_result.fitness}, RMSE: {icp_result.inlier_rmse}")
+
+            # Transform point cloud
+            target_cloud_o3d.transform(icp_result.transformation)
+
+            draw_registration_result(reference_cloud_o3d, target_cloud_o3d, icp_result.transformation)
+
+            # merge clouds
+            all_points_3d = np.vstack((all_points_3d, np.asarray(target_cloud_o3d.points)))
+            all_colors = np.vstack((all_colors, np.asarray(target_cloud_o3d.colors)))
+            break
+
+
         all_camera_extrinsics.append(c_T_o)
 
 ##################### VISUALIZATION

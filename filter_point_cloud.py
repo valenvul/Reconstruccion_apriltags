@@ -26,7 +26,7 @@ def mascara_budha(point_cloud):
 
 def mascara_apriltags(point_cloud, colors):
     x_min, x_max = -200, 200
-    y_min, y_max = 0, 300
+    y_min, y_max = -100, 200
     z_min, z_max = -200, 200
 
     mask = (
