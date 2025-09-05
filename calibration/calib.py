@@ -232,6 +232,7 @@ def detect_apriltags(image, tag_family):
 
     object_points = []
     image_points = []
+    tag_dict = {}
     tag_positions_mm = get_tag_positions()
 
     for detection in detections:
@@ -242,13 +243,15 @@ def detect_apriltags(image, tag_family):
         object_corners = tag_positions_mm[tag_id]
         image_corners = detection.corners
 
+        tag_dict[tag_id] = detection.center
+
         object_points.append(object_corners)
         image_points.append(image_corners)
 
     object_points = np.concatenate(object_points)
     image_points = np.concatenate(image_points)
 
-    return object_points, image_points
+    return object_points, image_points, tag_dict
 
 
 

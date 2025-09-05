@@ -16,7 +16,7 @@ def draw_registration_result(source, target, transformation):
 def np_to_o3d_pointcloud(point_cloud, colors):
     cloud_o3d = o3d.geometry.PointCloud()
     cloud_o3d.points = o3d.utility.Vector3dVector(point_cloud)
-    o3d.colors = o3d.utility.Vector3dVector(colors)
+    cloud_o3d.colors = o3d.utility.Vector3dVector(colors)
 
     cloud_o3d.estimate_normals(
         search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
@@ -50,3 +50,16 @@ def execute_global_registration(source_down, target_down, source_fpfh,
         o3d.pipelines.registration.FastGlobalRegistrationOption(
             maximum_correspondence_distance=distance_threshold))
     return result
+
+def display_inlier_outlier(cloud, ind):
+    inlier_cloud = cloud.select_by_index(ind)
+    outlier_cloud = cloud.select_by_index(ind, invert=True)
+
+    print("Showing outliers (red) and inliers (gray): ")
+    outlier_cloud.paint_uniform_color([1, 0, 0])
+    inlier_cloud.paint_uniform_color([0.8, 0.8, 0.8])
+    o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud],
+                                      zoom=0.3412,
+                                      front=[0.4257, -0.2125, -0.8795],
+                                      lookat=[2.6172, 2.0475, 1.532],
+                                      up=[-0.0694, -0.9768, 0.2024])

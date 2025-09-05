@@ -159,48 +159,64 @@ for left_file_name, right_file_name in zip(
         # Filter points so only the parts of interest of the scene are reconstructed
         point_cloud, colors = filter_point_cloud(point_cloud, colors,"raiz_apriltags")
 
-        #### ICP
-        # if it's the first point cloud save it
-        if all_points_3d.shape[0] == 0:
-            all_points_3d = np.vstack((all_points_3d, point_cloud))
-            all_colors = np.vstack((all_colors, colors))
-        # If there already is a point cloud use ICP to adjust the new one
-        else:
-            # transform pointclouds to o3d format to use ICP
-            target_cloud_o3d = np_to_o3d_pointcloud(point_cloud, colors)
-            reference_cloud_o3d = np_to_o3d_pointcloud(all_points_3d, all_colors)
+        ## filter outliers
+        cloud_o3d = o3d.geometry.PointCloud()
+        cloud_o3d.points = o3d.utility.Vector3dVector(point_cloud)
+        cloud_o3d.colors = o3d.utility.Vector3dVector(colors)
+        voxel_down_pcd = cloud_o3d.voxel_down_sample(voxel_size=0.02)
+        print("Statistical oulier removal")
+        cl, ind = voxel_down_pcd.remove_statistical_outlier(nb_neighbors=20,
+                                                           std_ratio=2.0)
+        #display_inlier_outlier(voxel_down_pcd, ind)
 
-            # downsample and calculate fpfh for each cloud
-            reference_down, reference_fpfh = preprocess_point_cloud(reference_cloud_o3d, 0.05)
-            target_down, target_fpfh = preprocess_point_cloud(target_cloud_o3d, 0.05)
+        # #### ICP
+        # # if it's the first point cloud save it
+        # if all_points_3d.shape[0] == 0:
+        #     all_points_3d = np.vstack((all_points_3d, point_cloud))
+        #     all_colors = np.vstack((all_colors, colors))
+        #
+        # # If there already is a point cloud use ICP to adjust the new one
+        # else:
+        #     # transform pointclouds to o3d format to use ICP
+        #     target_cloud_o3d = np_to_o3d_pointcloud(point_cloud, colors)
+        #     reference_cloud_o3d = np_to_o3d_pointcloud(all_points_3d, all_colors)
+        #
+        #     #downsample and calculate fpfh for each cloud
+        #     reference_down, reference_fpfh = preprocess_point_cloud(reference_cloud_o3d, 0.05)
+        #     target_down, target_fpfh = preprocess_point_cloud(target_cloud_o3d, 0.05)
+        #
+        #     #run ransac for global estimation
+        #     result_ransac = execute_global_registration(reference_down, target_down,
+        #                                                reference_fpfh, target_fpfh,
+        #                                                0.05)
+        #
+        #     # ICP between reference cloud and target cloud
+        #     icp_result = o3d.pipelines.registration.registration_icp(
+        #         reference_cloud_o3d, target_cloud_o3d,
+        #         max_correspondence_distance=0.02,
+        #         estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPoint(),
+        #         #init=result_ransac.transformation,
+        #         init = np.eye(4)
+        #         #criteria=o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=100)
+        #     )
+        #
+        #     print(f"Fitness: {icp_result.fitness}, RMSE: {icp_result.inlier_rmse}")
+        #
+        #     #draw_registration_result(reference_cloud_o3d, target_cloud_o3d, icp_result.transformation)
+        #
+        #     # adjust pointcloud
+        #     reference_cloud_o3d.transform(icp_result.transformation)
+        #
+        #     #merge clouds
+        #     point_cloud = reference_cloud_o3d + target_cloud_o3d
+        #
+        #     # merge clouds
+        #     all_points_3d = np.vstack((np.asarray(reference_cloud_o3d.points), np.asarray(target_cloud_o3d.points)))
+        #     all_colors = np.vstack((np.asarray(reference_cloud_o3d.colors), np.asarray(target_cloud_o3d.colors)))
+        #     break
 
-            # run ransac for gloal estimation
-            result_ransac = execute_global_registration(reference_down, target_down,
-                                                        reference_fpfh, target_fpfh,
-                                                        0.05)
-
-            # ICP between reference cloud and target cloud
-            icp_result = o3d.pipelines.registration.registration_icp(
-                target_cloud_o3d, reference_cloud_o3d,
-                max_correspondence_distance=0.02,
-                estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPlane(),
-                init=result_ransac.transformation,
-                #criteria=o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=100)
-            )
-
-            print(f"Fitness: {icp_result.fitness}, RMSE: {icp_result.inlier_rmse}")
-
-            # Transform point cloud
-            target_cloud_o3d.transform(icp_result.transformation)
-
-            draw_registration_result(reference_cloud_o3d, target_cloud_o3d, icp_result.transformation)
-
-            # merge clouds
-            all_points_3d = np.vstack((all_points_3d, np.asarray(target_cloud_o3d.points)))
-            all_colors = np.vstack((all_colors, np.asarray(target_cloud_o3d.colors)))
-            break
-
-
+        all_points_3d = np.vstack((all_points_3d, np.asarray(cl.points)))
+        all_colors = np.vstack((all_colors, np.asarray(cl.colors)))
         all_camera_extrinsics.append(c_T_o)
 
 ##################### VISUALIZATION
